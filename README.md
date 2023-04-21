@@ -146,10 +146,6 @@ Additional parameters:
 
 **xmltodict**
 > Version: 0.13.0
-		
-## Specificity
-* Training may not be established in the first epochs.
-* You should be careful with multi-scale training.
 
 ## References
 * [Original YOLOv3 paper](https://arxiv.org/pdf/1804.02767.pdf)
