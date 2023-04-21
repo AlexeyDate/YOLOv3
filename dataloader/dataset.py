@@ -83,8 +83,10 @@ class Dataset(Dataset):
                 [
                     alb.Resize(input_size, input_size),
                     alb.HorizontalFlip(p=0.5),
-                    alb.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=(-45, 45), p=0.5),
+                    alb.ShiftScaleRotate(shift_limit=0.0225, scale_limit=0.05, rotate_limit=(-25, 2), p=0.5),
                     alb.RandomBrightnessContrast(p=0.2),
+                    alb.MedianBlur(p=0.1),
+                    alb.RandomFog(p=0.5),
                     alb.Normalize(),
                     alb.pytorch.ToTensorV2()
                 ], bbox_params=alb.BboxParams(format='yolo', label_fields=['class_labels']))
@@ -130,8 +132,14 @@ class Dataset(Dataset):
                 if index == best_index:
                     tx = grid_size[scale_index] * box[0] - x_cell
                     ty = grid_size[scale_index] * box[1] - y_cell
-                    tw = torch.log(box[2] / self.anchors[best_index, 0])
-                    th = torch.log(box[3] / self.anchors[best_index, 1])
+
+                    # original method
+                    # tw = torch.log(box[2] / self.anchors[best_index, 0])
+                    # th = torch.log(box[3] / self.anchors[best_index, 1])
+
+                    # power method
+                    tw = (box[2] / self.anchors[best_index, 0]) ** (1 / 3) / 2
+                    th = (box[3] / self.anchors[best_index, 1]) ** (1 / 3) / 2
 
                     target[scale_index][y_cell, x_cell, anchor_index, 1:5] = torch.tensor([tx, ty, tw, th])
                     target[scale_index][y_cell, x_cell, anchor_index, 5 + transformed_class_labels[i]] = 1

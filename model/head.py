@@ -25,7 +25,12 @@ class Detect(nn.Module):
         batch_size = predictions.size(0)
         s = predictions.size(1)
         predictions = predictions.view(batch_size, s, s, self.num_anchors, 5 + self.num_classes)
-        predictions[..., 0:3] = torch.sigmoid(predictions[..., 0:3])
+
+        predictions[..., 0] = torch.sigmoid(predictions[..., 0])
+        predictions[..., 1:3] = torch.sigmoid(predictions[..., 1:3])
+
+        # power method
+        predictions[..., 3:5] = torch.sigmoid(predictions[..., 3:5])
 
         return predictions
 

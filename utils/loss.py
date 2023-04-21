@@ -16,12 +16,13 @@ class YOLOLoss(nn.Module):
         param: anchors - anchor boxes
 
         Note: be careful with predicted and target views.
-        Expected target view: (batch size, s, s, num anchors, 5 + num classes)
-        Epected predicted view: (batch size, s, s, num anchors * (5 + num classes))
+        Expected target view: 3 scale list with each view equals (batch size, s, s, num anchors, 5 + num classes)
+        Epected predicted view: 3 scale list with each view equals (batch size, s, s, num anchors, (5 + num classes)
         """
 
         self.mse = nn.MSELoss(reduction='none')
         self.bce = nn.BCEWithLogitsLoss(reduction='none')
+        self.bce_conf = nn.BCELoss(reduction='none')
 
         self.anchors = torch.tensor(anchors, dtype=torch.float32)
         self.num_anchors = self.anchors.size(0)
@@ -54,15 +55,15 @@ class YOLOLoss(nn.Module):
             target_twth = target[..., 3:5]
             target_classes = target[..., 5:]
 
-            anchors = self.anchors[scale_index * num_anchors_per_scale:scale_index * num_anchors_per_scale + num_anchors_per_scale]
-            with torch.no_grad():
-                # convert values from predicted format to standard YOLO format
-                predicted_bbox = convert_to_yolo(prediction, anchors, s)
-                target_bbox = convert_to_yolo(target, anchors, s)
-
-                # calculate iou between predictions and targets
-                iou = intersection_over_union(predicted_bbox, target_bbox)
-
+            # this is needed to calculate the losses via mse between predictions and iou with targets
+            # anchors = self.anchors[scale_index * num_anchors_per_scale:scale_index * num_anchors_per_scale + num_anchors_per_scale]
+            # with torch.no_grad():
+            #     # convert values from predicted format to standard YOLO format
+            #     predicted_bbox = convert_to_yolo(prediction, anchors, s)
+            #     target_bbox = convert_to_yolo(target, anchors, s)
+            #
+            #     # calculate iou between predictions and targets
+            #     iou = intersection_over_union(predicted_bbox, target_bbox)
 
             # Note: loss are calculated only for targets with a confidence of 0 or 1
             #  1 = if object exist with the best anchor
@@ -75,16 +76,16 @@ class YOLOLoss(nn.Module):
             wh_per_scale_loss = self.mse(predict_twth, target_twth).sum(dim=-1) * target_obj
             wh_loss += wh_per_scale_loss.sum() / batch_size
 
-            obj_per_scale_loss = self.mse(predict_obj, iou) * target_obj
-            obj_loss += obj_per_scale_loss.sum() / batch_size
+            obj_per_scale_loss = self.bce_conf(predict_obj[target_obj], target[..., 0][target_obj])
+            obj_loss += (1 / batch_size) * obj_per_scale_loss.sum()
 
-            no_obj_per_scale_loss = self.mse(predict_obj, iou * 0) * target_noobj
-            no_obj_loss += no_obj_per_scale_loss.sum() / batch_size
+            no_obj_per_scale_loss = self.bce_conf(predict_obj[target_noobj], target[..., 0][target_noobj])
+            no_obj_loss += (0.2 / batch_size) * no_obj_per_scale_loss.sum()
 
             class_per_scale_loss = self.bce(predict_classes, target_classes).sum(dim=-1) * target_obj
             class_loss += class_per_scale_loss.sum() / batch_size
 
+        # expected total_loss propagation
         total_loss = xy_loss + wh_loss + obj_loss + no_obj_loss + class_loss
 
-        # expected total_loss propagation
         return [total_loss, xy_loss, wh_loss, obj_loss, no_obj_loss, class_loss]

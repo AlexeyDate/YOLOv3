@@ -71,9 +71,9 @@ def inersection_over_union_anchors(bbox_wh, anchors) -> torch.tensor:
     return iou
 
 
-def non_max_supression(bboxes, iou_threshold):
+def non_max_suppression(bboxes, iou_threshold):
     """
-    Non-Maximum Supression.
+    Non-Maximum Suppression.
 
     param: bboxes - all predicted bounding boxes with valid confidience values
     param: iou_threshold - intesection over union threshold
@@ -119,11 +119,17 @@ def convert_to_yolo(bbox, anchors, s, with_softmax=False) -> torch.Tensor:
     grid_y, grid_x = torch.meshgrid(torch.arange(s), torch.arange(s), indexing='ij')
     grid_y = grid_y.contiguous().view(1, s, s, 1).to(device)
     grid_x = grid_x.contiguous().view(1, s, s, 1).to(device)
- 
+
     bbox[..., 1] = (bbox[..., 1] + grid_x) / s
     bbox[..., 2] = (bbox[..., 2] + grid_y) / s
-    bbox[..., 3] = anchors[:, 0] * torch.exp(bbox[..., 3])
-    bbox[..., 4] = anchors[:, 1] * torch.exp(bbox[..., 4])
+
+    # original method
+    # bbox[..., 3] = anchors[:, 0] * torch.exp(bbox[..., 3])
+    # bbox[..., 4] = anchors[:, 1] * torch.exp(bbox[..., 4])
+
+    # power method
+    bbox[..., 3] = anchors[:, 0] * (2 * bbox[..., 3]) ** 3
+    bbox[..., 4] = anchors[:, 1] * (2 * bbox[..., 4]) ** 3
 
     if with_softmax:
         bbox[..., 5:] = torch.softmax(bbox[..., 5:], dim=-1)
@@ -131,20 +137,21 @@ def convert_to_yolo(bbox, anchors, s, with_softmax=False) -> torch.Tensor:
     return bbox
 
 
-def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, device='cpu'):
+def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.3, device='cpu'):
     """
     Getting predicted and target bounding boxes with Non-Maximum Supression.
 
     param: loader - dataloader
     param: model - model
+    param: anchors - anchor boxes
     param: iou_threshold - Intersection Over Union threshold (default = 0.5)
-    param: threshold - confidience threshold (default = 0.4)
+    param: threshold - confidience threshold (default = 0.3)
     param: device - device of model (default = cpu)
 
     return: all prediction bounding boxes, all true bounding boxes
     """
 
-    assert isinstance(loader, torch.utils.data.dataloader.DataLoader),\
+    assert isinstance(loader, torch.utils.data.dataloader.DataLoader), \
         "loader does not match the type of torch.utils.data.dataloader.DataLoader"
 
     model.eval()
@@ -152,7 +159,6 @@ def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, de
         images = batch['image'].to(device)
         if i == 0:
             targets = batch['target']
-            # move all target scales to device
             targets = [scale.to(device) for scale in targets]
             with torch.no_grad():
                 predictions = model(images)
@@ -160,7 +166,8 @@ def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, de
             target = batch['target']
             targets = [torch.cat((targets[index], scale.to(device)), dim=0) for index, scale in enumerate(target)]
             with torch.no_grad():
-                predictions = [torch.cat((predictions[index], scale), dim=0) for index, scale in enumerate(model(images))]
+                predictions = [torch.cat((predictions[index], scale), dim=0) for index, scale in
+                               enumerate(model(images))]
 
     # setting values
     num_anchors_per_scale = targets[0].size(3)
@@ -169,7 +176,8 @@ def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, de
 
     for scale_index in range(len(predictions)):
         s = predictions[scale_index][0].size(1)
-        anchors_per_scale = anchors[scale_index * num_anchors_per_scale:scale_index * num_anchors_per_scale + num_anchors_per_scale]
+        anchors_per_scale = anchors[
+                            scale_index * num_anchors_per_scale:scale_index * num_anchors_per_scale + num_anchors_per_scale]
 
         # convert predictions and targets to standard YOLO format
         predictions[scale_index] = convert_to_yolo(predictions[scale_index], anchors_per_scale, s)
@@ -177,6 +185,8 @@ def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, de
 
     all_pred_boxes = []
     all_true_boxes = []
+
+    # concatenate results of each scale and apply non-maximum suppression
     for i in range(size):
         for scale_index in range(len(predictions)):
             predicted_bbox = predictions[scale_index][i]
@@ -192,7 +202,7 @@ def get_bound_boxes(loader, model, anchors, iou_threshold=0.5, threshold=0.4, de
                 image_true_bboxes = torch.cat((image_true_bboxes, target_bbox[mask_true, :]), dim=0)
 
         all_true_boxes.append(image_true_bboxes)
-        image_pred_bboxes = non_max_supression(image_pred_bboxes, iou_threshold)
+        image_pred_bboxes = non_max_suppression(image_pred_bboxes, iou_threshold)
         all_pred_boxes.append(image_pred_bboxes)
 
     return all_pred_boxes, all_true_boxes

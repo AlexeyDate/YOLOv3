@@ -88,8 +88,8 @@ if args.yolo_weights is not None:
     model.load_state_dict(torch.load(args.yolo_weights))
 
 loss = YOLOLoss(anchors=anchors).to(device)
-optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=args.weight_decay)
-scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=0.99)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=0.98)
 
 fit(model=model,
     optimizer=optimizer,
@@ -103,12 +103,12 @@ fit(model=model,
     device=device,
     verbose=True)
 
-torch.save(model.state_dict(), backup + 'yolov2_' + str(args.epochs) + '.pt')
+torch.save(model.state_dict(), backup + 'yolov3_' + str(args.epochs) + '.pt')
 
-pred_boxes, true_boxes = get_bound_boxes(train_dataloader, model, anchors, iou_threshold=0.5, threshold=0.45)
+pred_boxes, true_boxes = get_bound_boxes(train_dataloader, model, anchors, iou_threshold=0.5, threshold=0.3, device=device)
 mAP = mean_average_precision(pred_boxes, true_boxes, classes=classes, iou_threshold=0.5)
 print(f'Train mAP: {mAP}')
 
-pred_boxes, true_boxes = get_bound_boxes(val_dataloader, model, anchors, iou_threshold=0.5, threshold=0.2, device=device)
+pred_boxes, true_boxes = get_bound_boxes(val_dataloader, model, anchors, iou_threshold=0.5, threshold=0.3, device=device)
 mAP = mean_average_precision(pred_boxes, true_boxes, classes=classes, iou_threshold=0.5)
 print(f'Validation mAP: {mAP}')

@@ -117,14 +117,13 @@ def fit(model, optimizer, scheduler, criterion, epochs, train_dataloader, val_da
             print(f"val loss: {val_loss}")
 
         line_train, = plt.plot(list(range(0, epoch + 1)), train_loss_log, color='blue')
-        line_val, = plt.plot(list(range(0, epoch + 1)), val_loss_log, color='orange')       
+        line_val, = plt.plot(list(range(0, epoch + 1)), val_loss_log, color='orange')
         plt.title("Loss")
         plt.xlabel("epoch")
         plt.ylabel("loss")
-        plt.ylim([0, 7])
+        plt.ylim([0, 20])
         plt.title("Train steps")
         plt.legend((line_train, line_val), ['train loss', 'validation loss'])
         plt.draw()
         plt.pause(0.001)
         fig.savefig(backup + 'loss.png', bbox_inches='tight')
-
