@@ -96,13 +96,13 @@ All clustering parameters:
 ## Training
 * Moving on to training
 > 
-    python3 train.py --epochs 100 --learning_rate 1e-4 
+    python3 train.py --epochs 100 --lr 0.003
     
 All training parameters:
 
 `--epochs`                  (states: total epochs)
 
-`--learning_rate`           (states: learning rate)
+`--lr`           	    (states: learning rate)
 
 `--batch_size`              (states: batch size)
 
