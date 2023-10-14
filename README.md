@@ -121,10 +121,10 @@ All training parameters:
 ## Inference
 On video:
 > 
-    python3 detect.py --video --data_test content/video.mp4 --output content/detect.mp4 --weights backup/yolov3.pt
+    python3 detect.py --image_size 416 --video --data_test content/video.mp4 --output content/detect.mp4 --weights backup/yolov3.pt
 On image:
 > 
-    python3 detect.py --data_test content/image.jpg --output content/detect.jpg --weights backup/yolov3.pt
+    python3 detect.py --image_size 416 --data_test content/image.jpg --output content/detect.jpg --weights backup/yolov3.pt
 
 Additional parameters:
 
@@ -199,8 +199,8 @@ ___
 * [Darknet53 convolutional weights from ImageNet](https://pjreddie.com/media/files/darknet53.conv.74)
 ___
 * [African Wildlife dataset](https://www.kaggle.com/datasets/biancaferreira/african-wildlife?resource=download)
-* [African Wildlife PyTorch weights](https://drive.google.com/file/d/1-DdPBySo6FFCFM2io9JCOD4hAhAt_4TI/view?usp=sharing)
-* [African Wildlife optimizer state](https://drive.google.com/file/d/1-JrCKxFepgU-8zVsEpslHYyLHk2dbLMO/view?usp=sharing)
+* [African Wildlife PyTorch weights](https://drive.google.com/file/d/1-3e_b5LmlI2Ee9HEzg6e1UdcF1V2YK2M/view?usp=sharing)
+* [African Wildlife optimizer state](https://drive.google.com/file/d/1-GKbCk-1fZCjbhe-lBIWqe1Fd8rWq_NT/view?usp=drive_link)
 
 ## Contact
 * Developer: **Alexey Serzhantov**
