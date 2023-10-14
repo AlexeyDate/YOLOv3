@@ -183,8 +183,8 @@ def fit(model, optimizer, scheduler, criterion, epochs, train_dataloader, val_da
                     ["Total loss",  color[3][0] + str(round(train_loss[0], 3)) + end[3][0], color[3][1] + str(round(val_loss[0], 3)) + end[3][1]]
                 ]).table)
         else:
-            print(f"train loss: {train_loss}")
-            print(f"val loss: {val_loss}")
+            print(f"train loss: {train_loss[0]}")
+            print(f"val loss: {val_loss[0]}")
 
         steps = list(range(1, epoch + 2))
         plt.subplot(2, 3, 1)
