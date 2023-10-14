@@ -203,3 +203,7 @@ ___
 * [African Wildlife dataset](https://www.kaggle.com/datasets/biancaferreira/african-wildlife?resource=download)
 * [African Wildlife PyTorch weights](https://drive.google.com/file/d/1-DdPBySo6FFCFM2io9JCOD4hAhAt_4TI/view?usp=sharing)
 * [African Wildlife optimizer state](https://drive.google.com/file/d/1-JrCKxFepgU-8zVsEpslHYyLHk2dbLMO/view?usp=sharing)
+
+## Contact
+* Developer: **Alexey Serzhantov**
+* Email: serzhantov0289@gmail.com
