@@ -1,5 +1,5 @@
 # Implementation YOLOv3 using PyTorch 
-![image1](https://github.com/AlexeyDate/YOLOv3/assets/86290623/83ee93bb-e0d4-49ce-9c3e-ba92723cc851)
+![image1](https://github.com/AlexeyDate/YOLOv3/assets/86290623/589006e4-88a2-4d3d-84b2-0d7b531cf060)
 
 ## Dataset
 * This repository was train on the [African Wildlife Dataset](https://www.kaggle.com/datasets/biancaferreira/african-wildlife) from Kaggle
@@ -132,7 +132,7 @@ Additional parameters:
 
 **Note**: You can change the thresholds in `detect.py`.
 
-![image2](https://github.com/AlexeyDate/YOLOv3/assets/86290623/3b79eae7-5470-48e8-a720-d267fd564726)
+![image2](https://github.com/AlexeyDate/YOLOv3/assets/86290623/f3f1021f-65ff-45cf-b5e0-2b58c4ffd03f)
 
 ## Comparison
 | Model   		      | Dataset 	   | Input size <br> <sub> (pixel)    | mAP <br> <sub>(@0.5)   |
