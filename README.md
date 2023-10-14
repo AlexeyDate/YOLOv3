@@ -9,7 +9,7 @@ The main part of the code has been rewritten and optimized. Added the ability to
 
 ![loss_100](https://github.com/AlexeyDate/YOLOv3/assets/86290623/7b800efe-dd62-4152-85be-aa02bfabc389)
 
-***This version is recommended for all trainings*** ✅
+***This release v2.0 is recommended for all trainings*** ✅
 
 ## Dataset
 * This repository was train on the [African Wildlife Dataset](https://www.kaggle.com/datasets/biancaferreira/african-wildlife) from Kaggle
