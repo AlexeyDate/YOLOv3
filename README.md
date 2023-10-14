@@ -1,6 +1,16 @@
 # Implementation YOLOv3 using PyTorch 
 ![image1](https://github.com/AlexeyDate/YOLOv3/assets/86290623/589006e4-88a2-4d3d-84b2-0d7b531cf060)
 
+## YOLOv3 with CIoU loss 💡 
+**In this version, convergence has been improved due to the implementation of CIoU loss for bounding box regression.
+The main part of the code has been rewritten and optimized. Added the ability to select the image resolution for training** 
+
+**Now you can observe the training process, having an informative graph for each loss.**
+
+![loss_100](https://github.com/AlexeyDate/YOLOv3/assets/86290623/7b800efe-dd62-4152-85be-aa02bfabc389)
+
+***This version is recommended for all trainings*** ✅
+
 ## Dataset
 * This repository was train on the [African Wildlife Dataset](https://www.kaggle.com/datasets/biancaferreira/african-wildlife) from Kaggle
 * The data folder must contain the train and test folders as follows:
@@ -142,7 +152,7 @@ Additional parameters:
 | YOLOv3 <br> <sub> (Ours⭐)  		| African Wildlife   | 416       	      	             | 77    	            |
 | YOLOv3 CIoU loss <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 82    	            |
 
-## Test API
+## Test API ⚙
 >
 ```python
 from torch.utils.data import DataLoader
