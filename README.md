@@ -176,7 +176,7 @@ model.load_state_dict(torch.load('path to weights'))  # Here you have to write t
 # Getting prediction boxes and true boxes
 # nms_threshold - threshold for non-maximum suppresion
 # threshold - threshold in model prediction
-pred_boxes, true_boxes = get_bound_boxes(dataloader, model, anchors, nms_threshold=0.5, threshold=0.3, device=device)
+pred_boxes, true_boxes = get_bound_boxes(dataloader, model, anchors, image_size=416, nms_threshold=0.5, threshold=0.3, device=device)
 
 # As a result, we need to calculate mAP
 mAP = mean_average_precision(pred_boxes, true_boxes, classes=classes, iou_threshold=0.5)
