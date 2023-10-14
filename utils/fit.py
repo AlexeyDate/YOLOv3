@@ -3,15 +3,17 @@ import random
 
 import torch
 import matplotlib.pyplot as plt
-from IPython.display import clear_output
 from tqdm import tqdm
+from IPython.display import clear_output
+from terminaltables import AsciiTable
 
 
 def evaluate(model, criterion, val_dataloader, device):
-    val_loss = [0] * 6
+    val_loss = [0] * 4
     model.eval()
+
     for batch in tqdm(val_dataloader, desc=f'Evaluation', leave=False):
-        images, targets = batch['image'], batch['target']
+        images, targets = batch['image'], batch['converted_target']
 
         # Moving all target scales to device
         targets = [scale.to(device) for scale in targets]
@@ -49,84 +51,174 @@ def fit(model, optimizer, scheduler, criterion, epochs, train_dataloader, val_da
     if not os.path.isdir(backup):
         os.mkdir(backup)
 
-    train_loss_log = []
-    val_loss_log = []
-    fig = plt.figure(figsize=(11, 7))
+    train_log = [[], [], [], []]
+    best_train = [float('inf')] * 4
+
+    val_log = [[], [], [], []] 
+    best_val = [float('inf')] * 4
+
+    fig = plt.figure(figsize=(9, 7))
     fig_number = fig.number
 
+    # Python standard prefix for color font
+    green = '\033[1;32m'
+    default = '\033[1;0m'
+
     if train_dataset and verbose:
-        print('Resolution set to', '[', train_dataset.s * 32, 'x', train_dataset.s * 32, ']')
+        print('Resolution set to', '[', train_dataset.current_input_size, 'x', train_dataset.current_input_size, ']')
 
     for epoch in range(epochs):
         model.train()
-        train_loss = [0] * 6
+        train_loss = [0] * 4
 
-        for item, batch in enumerate(tqdm(train_dataloader, desc=f"Training, epoch {epoch}", leave=False)):
-            images, targets = batch['image'], batch['target']
+        for item, batch in enumerate(tqdm(train_dataloader, desc=f"Training, epoch {epoch + 1}", leave=False)):
+            images, targets = batch['image'], batch['converted_target']
 
             # Moving all target scales to device
             targets = [scale.to(device) for scale in targets]
-
+            
             # Moving images to device
             images = images.to(device)
 
-            predictions = model(images)
-            loss = criterion(predictions, targets)
-            train_loss = [x.item() + y for x, y in zip(loss, train_loss)]
-
+            # Clearing the gradients
             optimizer.zero_grad()
+
+            # Forward pass
+            predictions = model(images)
+            
+            loss = criterion(predictions, targets)
             loss[0].backward()
+            train_loss = [x.item() + y for x, y in zip(loss, train_loss)]   
+            
             optimizer.step()
 
             # Every 10 iteration generate a new image scale
             if train_dataset and item % 10 == 9:
-                train_dataset.s = random.randint(10, 19)
+                train_dataset.current_input_size = random.randint(10, 19) * 32
                 if train_dataset and verbose:
-                    print('\nResolution change to', '[', train_dataset.s * 32, 'x', train_dataset.s * 32, ']')
+                    print('\nResolution change to', '[', train_dataset.current_input_size, 'x', train_dataset.current_input_size, ']')
 
         scheduler.step()
 
         train_loss = [item / len(train_dataloader) for item in train_loss]
+        train_log[0].append(train_loss[0])
+        train_log[1].append(train_loss[1])
+        train_log[2].append(train_loss[2])
+        train_log[3].append(train_loss[3])
 
-        train_loss_log.append(train_loss[0])
         val_loss = evaluate(model, criterion, val_dataloader, device)
-        val_loss_log.append(val_loss[0])
+        val_log[0].append(val_loss[0])
+        val_log[1].append(val_loss[1])
+        val_log[2].append(val_loss[2])
+        val_log[3].append(val_loss[3])
+
+        print('iou_loss:', round(val_log[1][-1], 3))
+        print('obj_loss:', round(val_log[2][-1], 3))
+        print('class_loss:', round(val_log[3][-1], 3))
+
+        color = [['', ''],
+                 ['', ''],
+                 ['', ''],
+                 ['', '']]
+                 
+        end = [['', ''],
+               ['', ''],
+               ['', ''],
+               ['', '']]
+
+        if train_log[1][-1] < best_train[1]:
+            color[0][0] = green
+            end[0][0] = ' ↘' + default
+            best_train[1] = train_log[1][-1]
+
+        if train_log[2][-1] < best_train[2]:
+            color[1][0] = green   
+            end[1][0] = ' ↘' + default
+            best_train[2] = train_log[2][-1]
+
+        if train_log[3][-1] < best_train[3]:
+            color[2][0] = green
+            end[2][0] = ' ↘' + default
+            best_train[3] = train_log[3][-1]
+        
+        if train_log[0][-1] < best_train[0]:
+            color[3][0] = green
+            end[3][0] = ' ↘' + default
+            best_train[0] = train_log[0][-1]
+
+        if val_log[1][-1] < best_val[1]:
+            color[0][1] = green
+            end[0][1] = ' ↘' + default
+            best_val[1] = val_log[1][-1]
+
+        if val_log[2][-1] < best_val[2]:
+            color[1][1] = green   
+            end[1][1] = ' ↘' + default
+            best_val[2] = val_log[2][-1]
+
+        if val_log[3][-1] < best_val[3]:
+            color[2][1] = green
+            end[2][1] = ' ↘' + default
+            best_val[3] = val_log[3][-1]
+        
+        if val_log[0][-1] < best_val[0]:
+            color[3][1] = green
+            end[3][1] = ' ↘' + default
+            best_val[0] = val_log[0][-1]
 
         if not plt.fignum_exists(num=fig_number):
-            fig = plt.figure(figsize=(11, 7))
+            fig = plt.figure(figsize=(9, 7))
             fig_number = fig.number
 
         clear_output()
 
-        print(f"\nepoch: {epoch}\n")
+        print(f"\nEpoch: {epoch + 1}\{epochs}\n")
         if verbose:
-            print('train:')
-            print('coordinate x, y loss:', train_loss[1])
-            print('coordinate w, h loss:', train_loss[2])
-            print('object loss:', train_loss[3])
-            print('no object loss:', train_loss[4])
-            print('classes loss:', train_loss[5])
-            print('total loss:', train_loss[0])
-
-            print('\nvalidation:')
-            print('coordinate x, y loss:', val_loss[1])
-            print('coordinate w, h loss:', val_loss[2])
-            print('object loss:', val_loss[3])
-            print('no object loss:', val_loss[4])
-            print('classes loss:', val_loss[5])
-            print('total loss:', val_loss[0])
+            print(AsciiTable(
+                [
+                    ["Type",        "Train ",                                                "Validation"],
+                    ["Box loss",    color[0][0] + str(round(train_loss[1], 3)) + end[0][0], color[0][1] + str(round(val_loss[1], 3)) + end[0][1]],
+                    ["Object loss", color[1][0] + str(round(train_loss[2], 3)) + end[1][0], color[1][1] + str(round(val_loss[2], 3)) + end[1][1]],
+                    ["Class loss",  color[2][0] + str(round(train_loss[3], 3)) + end[2][0], color[2][1] + str(round(val_loss[3], 3)) + end[2][1]],
+                    ["Total loss",  color[3][0] + str(round(train_loss[0], 3)) + end[3][0], color[3][1] + str(round(val_loss[0], 3)) + end[3][1]]
+                ]).table)
         else:
-            print(f"train loss: {train_loss[0]}")
-            print(f"val loss: {val_loss[0]}")
+            print(f"train loss: {train_loss}")
+            print(f"val loss: {val_loss}")
 
-        line_train, = plt.plot(list(range(0, epoch + 1)), train_loss_log, color='blue')
-        line_val, = plt.plot(list(range(0, epoch + 1)), val_loss_log, color='orange')
-        plt.title("Loss")
-        plt.xlabel("epoch")
-        plt.ylabel("loss")
-        plt.ylim([0, 20])
-        plt.title("Train steps")
-        plt.legend((line_train, line_val), ['train loss', 'validation loss'])
+        steps = list(range(1, epoch + 2))
+        plt.subplot(2, 3, 1)
+        plt.title("train | box loss")
+        plt.plot(steps, train_log[1], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+        
+        plt.subplot(2, 3, 2)
+        plt.title("train | obj loss")
+        plt.plot(steps, train_log[2], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+
+        plt.subplot(2, 3, 3)
+        plt.title("train | class loss")
+        plt.plot(steps, train_log[3], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+
+        plt.subplot(2, 3, 4)
+        plt.title("validation | box loss")
+        plt.plot(steps, val_log[1], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+                
+        plt.subplot(2, 3, 5)
+        plt.title("validation | obj loss")
+        plt.plot(steps, val_log[2], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+                
+        plt.subplot(2, 3, 6)
+        plt.title("validation | class loss")
+        plt.plot(steps, val_log[3], marker='o', color='royalblue')
+        plt.grid(visible=1, linestyle="--", linewidth=0.5, color="0.5")
+
+        plt.tight_layout(pad=3.0)
+        
         plt.draw()
         plt.pause(0.001)
         fig.savefig(backup + 'loss.png', bbox_inches='tight')

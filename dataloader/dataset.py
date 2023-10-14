@@ -1,4 +1,5 @@
 import os
+from albumentations.core.bbox_utils import calculate_bbox_area
 import xmltodict
 import torch
 import numpy as np
@@ -8,27 +9,33 @@ from PIL import Image
 from torch.utils.data import Dataset
 from utils.utils import inersection_over_union_anchors
 
-
 class Dataset(Dataset):
     """
     Base class of txt and xml description files.
     Class can convert [x1, y1, x2, y2] view to the YOLO standart format
-    and create a target matrix after creating dataloader.
+    and create a target matrix after creating dataloader
 
     Note: shape of target = (batch size, grid size, grid size, num_anchors, 5 + num_classes)
-    each anchor = [t0, tx, ty, tw, th, c1, c2, ..., cn]
-    tx, ty values are calculated relative to the grid cell.
+    each anchor = [tx, ty, tw, th, t0, c1, c2, ..., cn]
+    tx, ty values are calculated relative to the grid cell
     """
 
-    def __init__(self, data_dir, labels_dir, anchors,
-                 num_classes=4, iou_threshold=0.7, file_format='txt', type_dataset='train', convert_to_yolo=True):
+    def __init__(self, 
+                 data_dir, 
+                 labels_dir,
+                 anchors,
+                 image_size = 416,
+                 num_classes=4, 
+                 file_format='txt', 
+                 type_dataset='train', 
+                 convert_to_yolo=True):
         """
         param: data_dir - path to obj.data
         param: labels_dir - path to obj.names
         param: anchors - anchor boxes
+        param: image_size - input image size (default = 416)
         param: num_classses - number of classes (default = 4)
-        param: iou_threshold - intersection over union threshold (default = 0.7)
-        param: file_foramt - txt or xml format description files (default = 'txt', available = 'xml')
+        param: file_format - txt or xml format description files (default = 'txt', available = 'xml')
         param: type_dataset - dataset type (default='train', available = 'validation')
         param: convert_to_yolo - needed if the deiscription files have the format of bounding boxes [x1, y1, x2, y2]
         """
@@ -48,21 +55,23 @@ class Dataset(Dataset):
                 if file.endswith('.' + file_format):
                     self.box_paths.append(data_dir + '/' + tag + '/' + file)
 
-        # sorting to access values by equivalent files
+        # Sorting to access values by equivalent files
         self.image_paths = sorted(self.image_paths)
         self.box_paths = sorted(self.box_paths)
 
         assert len(self.image_paths) == len(self.box_paths)
         assert type_dataset in ['train', 'validation']
 
-        self.s = 13
+        self.input_size = image_size
         self.anchors = torch.tensor(anchors, dtype=torch.float32)
         self.num_anchors = self.anchors.size(0)
         self.num_classes = num_classes
-        self.iou_threshold = iou_threshold
         self.file_format = file_format
         self.type_dataset = type_dataset
         self.convert_to_yolo = convert_to_yolo
+
+        # Variable for multi-scaling 
+        self.current_input_size = image_size
 
     def __getitem__(self, idx):
         image = np.array(Image.open(self.image_paths[idx]).convert("RGB"))
@@ -76,27 +85,23 @@ class Dataset(Dataset):
             for i, box in enumerate(bboxes):
                 bboxes[i] = self.convert_to_yolo_box_params(box, image.shape[1], image.shape[0])
 
-        input_size = self.s * 32
-        # creating transformations for training
+        # Creating transformations for training
         if self.type_dataset == 'train':
             transforms = alb.Compose(
                 [
-                    alb.Resize(input_size, input_size),
+                    alb.Resize(self.current_input_size, self.current_input_size),
                     alb.HorizontalFlip(p=0.5),
                     alb.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=(-45, 45), p=0.5),
-                    alb.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2, p=0.5),
-                    alb.CLAHE(clip_limit=4.0, tile_grid_size=(8, 8), p=0.5),
-                    alb.Perspective(scale=(0.05, 0.1), keep_size=True, interpolation=1, p=0.5),
-                    alb.PixelDropout(dropout_prob=0.01, drop_value=0, p=0.5),
+                    alb.RandomBrightnessContrast(p=0.2),
                     alb.Normalize(),
                     alb.pytorch.ToTensorV2()
                 ], bbox_params=alb.BboxParams(format='yolo', label_fields=['class_labels']))
 
-        # creating transformations for validation
+        # Creating transformations for validation
         elif self.type_dataset == 'validation':
             transforms = alb.Compose(
                 [
-                    alb.Resize(416, 416),
+                    alb.Resize(self.input_size, self.input_size),
                     alb.Normalize(),
                     alb.pytorch.ToTensorV2()
                 ], bbox_params=alb.BboxParams(format='yolo', label_fields=['class_labels']))
@@ -106,51 +111,61 @@ class Dataset(Dataset):
         transformed_bboxes = torch.tensor(transformed['bboxes'])
         transformed_class_labels = torch.tensor(transformed['class_labels'])
 
-        # target list contains 3 scale and 3 anchor boxes for each scale
+        # Target list contains 3 scale and 3 anchor boxes for each scale
         num_anchors_per_scale = 3
-        target = []
+        converted_target = []
         grid_size = []
-        for stride in [8, 16, 32]:
-            grid_size.append(input_size // stride)
-            target.append(torch.zeros((input_size // stride, input_size // stride, num_anchors_per_scale,
+        strides = [32, 16, 8]
+        for stride in strides:
+            grid_size.append(self.current_input_size // stride)
+            converted_target.append(torch.zeros((self.current_input_size // stride, self.current_input_size // stride, num_anchors_per_scale,
                                        self.num_classes + 5), dtype=torch.float32))
 
-        # target obj has variants:
-        #  1 = if object exist with the best anchor
-        # -1 = if object exist with not the best anchor (iou > threshold)
-        #  0 = others variants (object not exists)
+        # *****Target will be created in 2 variants:*****
+        #
+        # 1: Target tensor for training, it is a specific tensor with
+        # the following format: (scales, y, x, anchors, num_classes + 5)
+        #
+        # 2: Target tensor for calculating mAP 
+        # in the original yolo format (x, y, w, h, target_class)
+        
+        # Maximum train object in the image 
+        max_objects_per_image = 100
+        target = torch.empty(100, 5).fill_(-1)
 
         for i, box in enumerate(transformed_bboxes):
-            calculate_ious = inersection_over_union_anchors(bbox_wh=box[2:4], anchors=self.anchors)
-            best_index = torch.argmax(calculate_ious, dim=0)
+            
+            if i == 100:
+                print('\nThere are too many objects in the image, the number has been cut to 100')
+                break
 
-            for index, iou in enumerate(calculate_ious):
-                scale_index = index // num_anchors_per_scale
-                anchor_index = index % num_anchors_per_scale
+            target[i, :4] = box
+            target[i, 4] = transformed_class_labels[i]
+            
+            for yolo_layer in range(num_anchors_per_scale):
+                # Deprecated implementation with iou ignore threshold
+                # calculate_ious = intersection_over_union_anchors(bbox_wh=box[2:4], anchors=self.anchors[yolo_layer])
 
-                x_cell = int(grid_size[scale_index] * box[0])
-                y_cell = int(grid_size[scale_index] * box[1])
+                anchors = self.anchors[yolo_layer] / strides[yolo_layer]
+                t = box * grid_size[yolo_layer]
+                ratio = t[2:4] / anchors[:, None]
+                j = torch.max(ratio, 1. / ratio).max(dim=2)[0] < 4
 
-                if index == best_index:
-                    tx = grid_size[scale_index] * box[0] - x_cell
-                    ty = grid_size[scale_index] * box[1] - y_cell
+                x_cell = t[0].long()
+                y_cell = t[1].long()
+                for anchor_index, true_box in enumerate(j):
+                    if true_box:
+                        x_cell = x_cell.clamp_(0, grid_size[yolo_layer] - 1)
+                        y_cell = y_cell.clamp_(0, grid_size[yolo_layer] - 1)
 
-                    # original method
-                    tw = torch.log(box[2] / self.anchors[best_index, 0])
-                    th = torch.log(box[3] / self.anchors[best_index, 1])
+                        tx = grid_size[yolo_layer] * box[0] - x_cell
+                        ty = grid_size[yolo_layer] * box[1] - y_cell
 
-                    # power method
-                    # tw = (box[2] / self.anchors[best_index, 0]) ** (1 / 3) / 2
-                    # th = (box[3] / self.anchors[best_index, 1]) ** (1 / 3) / 2
+                        converted_target[yolo_layer][y_cell, x_cell, anchor_index, :4] = torch.tensor([tx, ty, t[2], t[3]]) 
+                        converted_target[yolo_layer][y_cell, x_cell, anchor_index, 5 + transformed_class_labels[i]] = 1
+                        converted_target[yolo_layer][y_cell, x_cell, anchor_index, 4] = 1
 
-                    target[scale_index][y_cell, x_cell, anchor_index, 1:5] = torch.tensor([tx, ty, tw, th])
-                    target[scale_index][y_cell, x_cell, anchor_index, 5 + transformed_class_labels[i]] = 1
-                    target[scale_index][y_cell, x_cell, anchor_index, 0] = 1
-
-                elif iou > self.iou_threshold:
-                    target[scale_index][y_cell, x_cell, anchor_index, 0] = -1
-
-        return {"image": transformed_image, "target": target}
+        return {"image": transformed_image.float(), "converted_target": converted_target, "target": target}
 
     def __len__(self):
         return len(self.image_paths)

@@ -1,8 +1,6 @@
 import torch
 from torch import nn
 from utils.utils import intersection_over_union
-from utils.utils import convert_to_yolo
-
 
 class YOLOLoss(nn.Module):
     """
@@ -16,66 +14,81 @@ class YOLOLoss(nn.Module):
         param: anchors - anchor boxes
 
         Note: be careful with predicted and target views.
-        Expected target view: 3 scale list with each view equals (batch size, s, s, num anchors, 5 + num classes)
-        Epected predicted view: 3 scale list with each view equals (batch size, s, s, num anchors, (5 + num classes)
+        Expected target view: 3 scale list with each view equals (batch size, s, s, num anchors, (5 + num classes))
+        Epected predicted view: 3 scale list with each view equals (batch size, s, s, num anchors, (5 + num classes))
         """
-
-        self.mse = nn.MSELoss(reduction='none')
-        self.bce = nn.BCEWithLogitsLoss(reduction='none')
-        self.bce_conf = nn.BCELoss(reduction='none')
+        self.BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.0]))
+        self.BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.0]))
 
         self.anchors = torch.tensor(anchors, dtype=torch.float32)
         self.num_anchors = self.anchors.size(0)
+        self.strides = [32, 16, 8]
 
     def forward(self, predictions, targets):
-        xy_loss, wh_loss, obj_loss, no_obj_loss, class_loss = 0, 0, 0, 0, 0
+        device = predictions[0].device
+        box_loss, obj_loss, classes_loss = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
         # Calculation the loss at the level of the corresponding scale.
         # Note: expected features should be equals in shape between predictions and targets:
-        # First scale: small features
-        # Second scale: medium features
-        # Third scale: large features
-        for scale_index, (prediction, target) in enumerate(zip(predictions, targets)):
-            s = target.size(1)
-            batch_size = target.size(0)
-            num_anchors_per_scale = target.size(3)
+        # *****First  scale*****  -> large features
+        # *****Second scale*****  -> medium features
+        # *****Third  scale*****  -> small features
+        for layer_index, (layer_predictions, layer_targets) in enumerate(zip(predictions, targets)):    
+            # Build empty object target tensor to calculate object loss
+            tobj = torch.zeros_like(layer_predictions[..., 0], device=layer_predictions.device)
 
-            # target and predicted anchor box values:
-            # target:     [conf, tx, ty, tw, th, c1, c2, ..., cn]
-            # prediction: [conf, tx, ty, tw, th, c1, c2, ..., cn]
+            # Creation the mask for target positions
+            target_mask = layer_targets[..., 4] == 1
 
-            predict_obj = prediction[..., 0]
-            predict_txty = prediction[..., 1:3]
-            predict_twth = prediction[..., 3:5]
-            predict_classes = prediction[..., 5:]
+            # Calculation targets per batch
+            num_targets = target_mask.count_nonzero()
 
-            target_obj = (target[..., 0] == 1)
-            target_noobj = (target[..., 0] == 0)
-            target_txty = target[..., 1:3]
-            target_twth = target[..., 3:5]
-            target_classes = target[..., 5:]
+            # Checking for the presence of targets for this batch
+            if num_targets:
+                num_anchors_per_scale = predictions[0].size(3)
 
-            # Note: loss are calculated only for targets with a confidence of 0 or 1
-            #  1 = if object exist with the best anchor
-            # -1 = if object exist with not the best anchor (iou > threshold)
-            #  0 = others variants (object not exist)
+                # Target and predicted anchor box values:
+                # Target:     [conf, tx, ty, tw, th, c1, c2, ..., cn]
+                # Prediction: [conf, tx, ty, tw, th, c1, c2, ..., cn]
 
-            xy_per_scale_loss = self.mse(predict_txty, target_txty).sum(dim=-1) * target_obj
-            xy_loss += xy_per_scale_loss.sum() / batch_size
+                # Anchor boxes needed to convert values to prediction boxes
+                anchors = (self.anchors[layer_index] / self.strides[layer_index]).to(device)
 
-            wh_per_scale_loss = self.mse(predict_twth, target_twth).sum(dim=-1) * target_obj
-            wh_loss += wh_per_scale_loss.sum() / batch_size
+                pbox = layer_predictions
+                tbox = layer_targets
 
-            obj_per_scale_loss = self.bce_conf(predict_obj[target_obj], target[..., 0][target_obj])
-            obj_loss += (1.0 / batch_size) * obj_per_scale_loss.sum()
+                # Original method
+                pbox[..., 2:4] = torch.exp(pbox[..., 2:4]) * anchors
 
-            no_obj_per_scale_loss = self.bce_conf(predict_obj[target_noobj], target[..., 0][target_noobj])
-            no_obj_loss += (0.2 / batch_size) * no_obj_per_scale_loss.sum()
+                # Power method
+                # pbox[..., :2]  = pbox[..., :2].sigmoid() * 2. - 0.5 
+                # pbox[..., 2:4] = (pbox[..., 2:4].sigmoid() * 2) ** 2 * anchors
 
-            class_per_scale_loss = self.bce(predict_classes, target_classes).sum(dim=-1) * target_obj
-            class_loss += class_per_scale_loss.sum() / batch_size
+                pbox = pbox[target_mask]
+                tbox = tbox[target_mask]
 
-        # expected total_loss propagation
-        total_loss = xy_loss + wh_loss + obj_loss + no_obj_loss + class_loss
+                # Calculate IoU between predictions and targets.
+                # You may use different metrics: CIoU, DIoU, GIoU, IoU
+                # *****CIoU recommended*****
+                iou = intersection_over_union(pbox[:, :4], tbox[:, :4], CIoU=True)
 
-        return [total_loss, xy_loss, wh_loss, obj_loss, no_obj_loss, class_loss]
+                # Box loss
+                box_loss += (1.0 - iou).mean()
+
+                # Classes loss
+                classes_loss += self.BCEcls(pbox[:, 5:], tbox[:, 5:])
+
+                tobj[target_mask] = iou.detach().clamp(0)
+
+            # Object loss
+            obj_loss += self.BCEobj(layer_predictions[..., 4], tobj)
+
+        # Using balancing values 
+        box_loss *= 0.05
+        obj_loss *= 1.0
+        classes_loss *= 0.5
+
+        # Expected total_loss propagation
+        total_loss = (box_loss + obj_loss + classes_loss)
+
+        return [total_loss, box_loss, obj_loss, classes_loss]

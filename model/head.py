@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import contiguous_format, nn
 
 
 class Detect(nn.Module):
@@ -19,18 +19,13 @@ class Detect(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
-        predictions = self.detect(x)
-        predictions = predictions.permute(0, 2, 3, 1)
+        
+        batch_size = x.size(0)
+        s = x.size(2) # Getting height or width from outputs
 
-        batch_size = predictions.size(0)
-        s = predictions.size(1)
-        predictions = predictions.view(batch_size, s, s, self.num_anchors, 5 + self.num_classes)
-
-        predictions[..., 0] = torch.sigmoid(predictions[..., 0])
-        predictions[..., 1:3] = torch.sigmoid(predictions[..., 1:3])
-
-        # power method
-        # predictions[..., 3:5] = torch.sigmoid(predictions[..., 3:5])
+        # out(bs, 3 * (num_classes + 5), height, width) to out(bs, height, width, 3, 5 + num_classes)
+        predictions = self.detect(x).view(batch_size, self.num_anchors, self.num_classes + 5, s, s)
+        predictions = predictions.permute(0, 3, 4, 1, 2).contiguous()
 
         return predictions
 
@@ -39,9 +34,9 @@ class YoloHead(nn.Module):
     def __init__(self, anchors, num_classes):
         super().__init__()
 
-        self.detect_small = Detect(in_channels=128, anchors=anchors[0:3], num_classes=num_classes)
-        self.detect_medium = Detect(in_channels=256, anchors=anchors[3:6], num_classes=num_classes)
-        self.detect_large = Detect(in_channels=512, anchors=anchors[6:9], num_classes=num_classes)
+        self.detect_small = Detect(in_channels=128, anchors=anchors[2], num_classes=num_classes)
+        self.detect_medium = Detect(in_channels=256, anchors=anchors[1], num_classes=num_classes)
+        self.detect_large = Detect(in_channels=512, anchors=anchors[0], num_classes=num_classes)
 
     def forward(self, x):
         features_large, features_medium, features_small = x
@@ -50,4 +45,4 @@ class YoloHead(nn.Module):
         predict_medium = self.detect_medium(features_medium)
         predict_large = self.detect_large(features_large)
 
-        return predict_small, predict_medium, predict_large
+        return predict_large, predict_medium, predict_small 

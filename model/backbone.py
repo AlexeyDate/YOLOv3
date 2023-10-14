@@ -96,6 +96,8 @@ class Darknet53(nn.Module):
     def load_weights(self, weightfile):
         """
         Loading weights to Darknet53.
+        You can download these weights on the follow links:
+        https://pjreddie.com/media/files/darknet53_448.weights
 
         param weightfile: binary file of weights
 
@@ -112,7 +114,7 @@ class Darknet53(nn.Module):
             for child in self.children():
                 if isinstance(child, nn.Sequential):
                     for num_layer, layer in enumerate(child):
-                        # immersion in convolutional layers between residual
+                        # Immersion in convolutional layers between residual
                         if isinstance(layer, nn.modules.conv.Conv2d):
                             if isinstance(child[num_layer + 1], nn.modules.BatchNorm2d):
                                 conv_layer = child[num_layer]
@@ -121,11 +123,11 @@ class Darknet53(nn.Module):
                             else:
                                 conv_layer = child[num_layer]
                                 start = load_conv(buf, start, conv_layer)
-                        # immersion in residual blocks
+                        # Immersion in residual blocks
                         elif isinstance(layer, ResBlock):
-                            # getting residual block
+                            # Getting residual block
                             for residual_block in layer.children():
-                                # getting layers from residual block
+                                # Getting layers from residual block
                                 for num_residual_layer, residual_layer in enumerate(residual_block.children()):
                                     if isinstance(residual_layer, nn.modules.conv.Conv2d):
                                         conv_layer = residual_block[num_residual_layer]

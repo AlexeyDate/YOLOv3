@@ -19,6 +19,7 @@ with open(data, 'r') as f:
     backup = f.readline().split()[2]
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--image_size', type=int, default=416, help='Input image size')
 parser.add_argument('--data_test', type=str, default=None, help='Testing data')
 parser.add_argument('--weights', type=str, default=None, help='Path to YOLOv2 weight file')
 parser.add_argument('--output', type=str, default=None, help='Path to save output file')
@@ -26,21 +27,14 @@ parser.add_argument('--video', action='store_true', default=False, help='Enable 
 parser.add_argument('--show', action='store_true', default=False, help='Show image or video during object detection')
 args = parser.parse_args()
 
-threshold = 0.3
-anchors = [[0.16311909, 0.18589602],
-           [0.22665434, 0.38434604],
-           [0.37126869, 0.52367880],
-           [0.35679135, 0.77865950],
-           [0.57373131, 0.54419005],
-           [0.50775443, 0.83491387],
-           [0.78568474, 0.70004242],
-           [0.65448186, 0.86748236],
-           [0.87333577, 0.90867049]]
-
+threshold = 0.1
+anchors = [[[313, 303], [336, 323], [306, 371]],
+           [[139, 222], [149, 212], [171, 205]],
+           [[23, 34], [99, 234], [129, 224]]]
 
 transform = alb.Compose(
      [
-        alb.Resize(416, 416),
+        alb.Resize(args.image_size, args.image_size),
         alb.Normalize(),
         alb.pytorch.ToTensorV2()
      ])
@@ -86,19 +80,18 @@ while cap.isOpened():
         num_anchors_per_scale = predictions[0].size(3)
         for scale_index in range(len(predictions)):
             s = predictions[scale_index][0].size(1)
-            anchors_per_scale = anchors[
-                                scale_index * num_anchors_per_scale:scale_index * num_anchors_per_scale + num_anchors_per_scale]
+            anchors_per_scale = anchors[scale_index]
 
-            # convert predictions to standard YOLO format
-            predicted_bbox = convert_to_yolo(predictions[scale_index], anchors_per_scale, s, with_softmax=True)
+            # Converting predictions to standard YOLO format
+            predicted_bbox = convert_to_yolo(predictions[scale_index], args.image_size, anchors_per_scale, s)
 
-            mask_pred = predicted_bbox[..., 0] >= threshold
+            mask_pred = predicted_bbox[..., 4] >= threshold
             if scale_index == 0:
                 all_pred_bboxes = predicted_bbox[mask_pred, :]
             else:
                 all_pred_bboxes = torch.cat((all_pred_bboxes, predicted_bbox[mask_pred, :]), dim=0)
 
-        predicted_bbox = non_max_suppression(all_pred_bboxes, iou_threshold=0.5)
+        predicted_bbox = non_max_suppression(all_pred_bboxes, iou_threshold=0.4)
 
         labels = [[str, tuple] for i in range(classes)]
         colors = [(0, 0, 255), (0, 165, 255), (0, 255, 255), (100, 255, 40)]
@@ -114,11 +107,12 @@ while cap.isOpened():
 
         height, width, _ = frame.shape
         for box in predicted_bbox:
-            conf = box[0].item()
-            x1 = int(box[1] * width - box[3] * width / 2)
-            y1 = int(box[2] * height - box[4] * height / 2)
-            x2 = int(box[1] * width + box[3] * width / 2)
-            y2 = int(box[2] * height + box[4] * height / 2)
+            conf = box[4].item()
+            box[0:4] /= args.image_size
+            x1 = int(box[0] * width - box[2] * width / 2)
+            y1 = int(box[1] * height - box[3] * height / 2)
+            x2 = int(box[0] * width + box[2] * width / 2)
+            y2 = int(box[1] * height + box[3] * height / 2)
             choose_class = torch.argmax(box[5:])
 
             line_thickness = 2

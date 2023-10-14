@@ -5,7 +5,7 @@ import argparse
 
 def extract_boxes_wh(data):
     """
-    Extract width and height from description files with bounding boxes.
+    Extracting width and height values from description files with bounding boxes.
 
     param: data - path to obj.data
     return: bounding boxes with only width and height
@@ -93,8 +93,9 @@ def square(box):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', type=str, default='./data/obj.data', help='Path to obj.data')
+    parser.add_argument('--image_size', type=int, default=416, help='Train image size')
     parser.add_argument('--n_cluster', type=int, default=9, help='Clusters number')
-    parser.add_argument('--gen', type=int, default=100, help='Generations number') 
+    parser.add_argument('--gen', type=int, default=100, help='Generations number')
     args = parser.parse_args()
 
     best_avg_iou = 0
@@ -111,7 +112,7 @@ def main():
           best_clusters = clusters
 
     print(f'average IOU: {best_avg_iou:.3f}')
-    print('anchor boxes:\n', best_clusters)
+    print('anchor boxes:\n', best_clusters * args.image_size)
 
 
 if __name__ == "__main__":

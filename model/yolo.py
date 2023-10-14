@@ -8,7 +8,7 @@ from model.head import YoloHead
 class YOLOv3(nn.Module):
     """
     Class implements the original architecture of the YOLOv3 model.
-    This class contains Darknet53 model, it is CNN backbone of the YOLOv3 model.
+    This class contains Darknet53 model, it is a CNN backbone of the YOLOv3 model.
     """
 
     def __init__(self, anchors, num_classes=1000, darknet_weights=None):
