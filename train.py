@@ -116,10 +116,10 @@ fit(model=model,
 if args.epochs > 0:
     torch.save(model.state_dict(), backup + 'yolov3_' + str(args.epochs) + '.pt')
 
-pred_boxes, true_boxes = get_bound_boxes(train_dataloader, model, anchors, nms_threshold=0.4, threshold=0.1, device=device)
+pred_boxes, true_boxes = get_bound_boxes(train_dataloader, model, anchors, image_size=args.image_size, nms_threshold=0.4, threshold=0.1, device=device)
 mAP = mean_average_precision(pred_boxes, true_boxes, classes=classes, iou_threshold=0.5)
 print(f'Train mAP: {mAP}')
 
-pred_boxes, true_boxes = get_bound_boxes(val_dataloader, model, anchors, nms_threshold=0.4, threshold=0.1, device=device)
+pred_boxes, true_boxes = get_bound_boxes(val_dataloader, model, anchors, image_size=args.image_size, nms_threshold=0.4, threshold=0.1, device=device)
 mAP = mean_average_precision(pred_boxes, true_boxes, classes=classes, iou_threshold=0.5)
 print(f'Validation mAP: {mAP}')
