@@ -140,6 +140,7 @@ Additional parameters:
 | YOLOv1 <br> <sub> (Ours⭐)  | African Wildlife   | 448       	                     | 61     	  	      |
 | YOLOv2 <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 72    	            |
 | YOLOv3 <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 77    	            |
+| YOLOv3 CIoU loss <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 82    	            |
 
 ## Test API
 >
