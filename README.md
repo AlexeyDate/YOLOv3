@@ -98,7 +98,7 @@ All clustering parameters:
     
 All training parameters:
 
-`--image size`              (states: input image size')
+`--image size`              (states: input image size)
 
 `--epochs`                  (states: total epochs)
 
