@@ -81,17 +81,15 @@ All clustering parameters:
 >	
     average IOU: 0.983
     anchor boxes:
-     [[0.11225179 0.20962439]
-     [0.2432669  0.25324393]
-     [0.33063245 0.37442702]
-     [0.3273001  0.51367768]
-     [0.26461367 0.7279446 ]
-     [0.61434309 0.51579031]
-     [0.44362939 0.72581586]
-     [0.77726385 0.7311893 ]
-     [0.71958308 0.90361056]]
-
-
+	 [[ 76.65064664 107.10037741]
+	 [168.95037498 172.72056937]
+	 [134.74968954 247.5132047 ]
+	 [219.54969625 240.28065663]
+	 [167.14672785 327.9973526 ]
+	 [261.83260957 280.90816227]
+	 [333.50469046 293.58168127]
+	 [285.5608964  381.0593046 ]
+	 [384.12271692 380.82027335]]
 
 ## Training
 * Moving on to training
@@ -99,6 +97,8 @@ All clustering parameters:
     python3 train.py --epochs 100 --lr 0.003
     
 All training parameters:
+
+`--image size`              (states: input image size')
 
 `--epochs`                  (states: total epochs)
 
@@ -135,11 +135,11 @@ Additional parameters:
 ![image2](https://github.com/AlexeyDate/YOLOv3/assets/86290623/f3f1021f-65ff-45cf-b5e0-2b58c4ffd03f)
 
 ## Comparison
-| Model   		      | Dataset 	   | Input size <br> <sub> (pixel)    | mAP <br> <sub>(@0.5)   |
-| :---:   		      | :---:   	   | :---:    	                      | :---: 		       | 
-| YOLOv1 <br> <sub> (Ours⭐)  | African Wildlife   | 448       	                     | 61     	  	      |
-| YOLOv2 <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 72    	            |
-| YOLOv3 <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 77    	            |
+| Model   		      		| Dataset 	     | Input size <br> <sub> (pixel)         | mAP <br> <sub>(@0.5) |
+| :---:   		      		| :---:   	     | :---:    	                     | :---: 		    | 
+| YOLOv1 <br> <sub> (Ours⭐)  		| African Wildlife   | 448       	                     | 61     	  	    |
+| YOLOv2 <br> <sub> (Ours⭐)  		| African Wildlife   | 416       	      	             | 72    	            |
+| YOLOv3 <br> <sub> (Ours⭐)  		| African Wildlife   | 416       	      	             | 77    	            |
 | YOLOv3 CIoU loss <br> <sub> (Ours⭐)  | African Wildlife   | 416       	      	             | 82    	            |
 
 ## Test API
@@ -151,15 +151,9 @@ from model.yolo import YOLOv3
 from utils.utils import get_bound_boxes
 from utils.mAP import mean_average_precision
 
-anchors = [[0.16311909, 0.18589602],
-	   [0.22665434, 0.38434604],
-	   [0.37126869, 0.52367880],
-	   [0.35679135, 0.77865950],
-	   [0.57373131, 0.54419005],
-	   [0.50775443, 0.83491387],
-	   [0.78568474, 0.70004242],
-	   [0.65448186, 0.86748236],
-	   [0.87333577, 0.90867049]]
+anchors = [[[313, 303], [336, 323], [306, 371]],
+           [[139, 222], [149, 212], [171, 205]],
+           [[23, 34], [99, 234], [129, 224]]]
 
 # Creating custom dataloaders for validation
 # You can see an example of creation in 'train.py'
@@ -194,6 +188,9 @@ print(mAP)
 
 **xmltodict**
 > Version: 0.13.0
+
+**terminaltables**
+> Version: 3.1.10
 
 ## References
 * [Original YOLOv3 paper](https://arxiv.org/pdf/1804.02767.pdf)
