@@ -135,7 +135,7 @@ class Dataset(Dataset):
 
         for i, box in enumerate(transformed_bboxes):
             
-            if i == 100:
+            if i == max_objects_per_scale:
                 print('\nThere are too many objects in the image, the number has been cut to 100')
                 break
 
